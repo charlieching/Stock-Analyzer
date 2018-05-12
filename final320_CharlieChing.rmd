@@ -1,0 +1,477 @@
+#Facebook Stock Analysis
+##Charlie Ching
+##CMSC320
+
+
+```{r load_data, message=FALSE, warning= FALSE}
+library(tidyverse)
+library(dplyr)
+
+library(rvest)
+library(tidyr)
+library(stringr)
+
+library(ggplot2)
+library(broom)
+library(tree)
+library(randomForest)
+```
+
+##Can we predict the future of a stock and how to maximize profit?
+
+Using R, we will analyze Facebook Stock data and seek to answer this question!
+
+
+This data is taken from the NASDAQ website. This dataset I am working with includes Facebook's stock data for the past 3 years.
+
+##Data Curation, Parsing, and Management
+
+Let's then load in the data using the tidyverse library. You can learn more about how to use tidyverse at https://www.tidyverse.org if you need more clarification!
+
+Note, I include "stringsAsFactors=FALSE" inside the read.csv call to make sure the columns are not passed as factors. This lets us tidy data easier!
+
+```{r }
+fb_df <- read.csv("HistoricalQuotes.csv", stringsAsFactors=FALSE) #reading in the csv dataset file
+fb_df %>% 
+  as_data_frame() #using as_data_frame() so it doesn't print out the entire frame
+```
+
+Above, you can see the dataset. Just looking at it, you can see it has 6 columns and 756 rows. If you may be wondering why some dates are missing, it is because the stock market is not open on the weekends!
+
+When looking at the data set, we can see that some column names aren't that descriptive - someone who doesn't know about stocks may have a hard time understanding what these numbers mean.
+
+Let's rename these columns using the rename function and also reorder the columns in a more logical sense using the select function! 
+
+```{r }
+fb_df_updated <- fb_df %>% 
+  rename(Closing_Price = close,
+         Volume_of_Shares_Traded = volume,
+         Opening_Price = open) %>% #renamed columns
+  select(date, Volume_of_Shares_Traded, Opening_Price, Closing_Price, high, low) %>% #only selecting certain columns
+  as_data_frame()
+fb_df_updated
+```
+
+Let's split up this date into months, days, and years through the separate method. We should also convert these numbers into integers for later analysis using the type_convert method - this parses the character attributes into integers. 
+
+Now, let's also convert the date columns to date objects to allow for easier analysis. This is done by parsing the <chr> values into a different type of <date> through using as.Date() and specifying the format of %d/%m%Y to match the format of the <chr> originally in the Date column.
+
+
+```{r }
+fb_df_dates <- fb_df_updated %>%
+  mutate(Date = date) %>%
+  separate(date, c("Month", "Day", "Year"), "/") %>% #separating the date by "/"
+  type_convert(cols(Month=col_integer(), Day=col_integer(), Year= col_integer() )) %>% #converting these new columns to integers
+  mutate(Date=as.Date(Date, format = "%m/%d/%Y")) %>% #converting Date to a date object
+  select(Date, Month, Day, Year, Volume_of_Shares_Traded, Opening_Price, Closing_Price, high, low) %>%
+  as_data_frame()
+  
+fb_df_dates
+```
+
+Since we now have a nice data frame, let's begin the analysis with a plot of how the stock price changes across years using ggplot2. You can learn more about ggplot2 [here](http://ggplot2.org/) !
+
+Closing Price is the price that is displayed since it is the indication of how well or how poorly the stock performed during the day. Because of this, we can get rid of columns that are not as important in the data frame such as high and low.
+
+```{r }
+fb_df_cleaned <- fb_df_dates %>%
+  select(Date, Month, Day, Year, Volume_of_Shares_Traded, Opening_Price, Closing_Price) %>% #dropping low and high columns
+  as_data_frame()
+  
+fb_df_cleaned
+```
+
+
+
+
+```{r }
+fb_df_cleaned %>%
+  ggplot(aes(x=Date, y=Closing_Price)) + #x is Date and y is Closing_Price
+  geom_line(color = "#009700") + #coloring the line
+  labs(title="Facebook Stock Closing Price Across Time (May 2015 - May 2018)")
+```
+
+I also colored the line green using color = "#009700" inside geom_line(), so it looks like the stock graph on google when you search "fb stock"!
+
+Since there is now a basic understanding of stocks and how ggplot2 works, let's head a bit deeper into Exploratory Data Analysis.
+
+##Exploratory Data Analysis
+
+Similar to the plot before, using a certain type of plot requires you to do ggplot(...) + geom_X where X is a type of plot. In this case, we are going to use point in order to see how the regression line looks like!
+
+```{r}
+
+fb_df_cleaned %>%
+  ggplot(aes(x=Date, y=Closing_Price)) +
+  geom_point() +
+  labs(title="Facebook Stock Regression Line (May 2015 - May 2018)") +
+  geom_smooth(method=lm) #showing regression line
+```
+
+This helps to indicate the relationship between date and closing price.
+
+Let's see how closing price correlates to opening price
+```{r}
+
+fb_df_cleaned %>%
+  ggplot(aes(x=Opening_Price, y=Closing_Price)) +
+  geom_point() +
+  labs(title="Facebook Stock Closing Vs. Opening Price (May 2015 - May 2018)") +
+  geom_smooth(method=lm)
+```
+
+We can also quickly analyze central tendencies, spread, and outliers of the data using a boxplot. 
+
+```{r, warning=FALSE }
+fb_df_cleaned %>%
+  ggplot(aes(x=Date, y=Closing_Price)) +
+  geom_boxplot() + #type of plot is boxplot
+  labs(title="Facebook Stock Boxplot (May 2015 - May 2018)")
+```
+
+However, this only shows the boxplot for all years grouped into one. Suppose we want to see the boxplot for each year? We can do this by using a group in the aes for year. This is where the separation of the date we did earlier comes into play!
+
+```{r}
+fb_df_cleaned %>%
+  ggplot(aes(x=Date, y=Closing_Price, group=Year)) + #grouping data by year
+  geom_boxplot() +
+  labs(title="Facebook Stock Boxplot Across Years (May 2015 - May 2018)")
+```
+
+Now we can see the measures of central tendencies, spread, and outliers of the boxplot for all years! Through exploratory data analysis, we can say that the median and max have increased every year in a linear trend.
+
+
+But say we want to know more about this data set. What can we figure out using the data we have?
+
+Since people are trying to make money with stocks, they always want to know when a good time to sell the stock is. Using our data, we can find that out.
+
+To solve this, I can find out how the average Volume traded correlates to the average closing price across years. 
+
+```{r}
+
+fb_df_cleaned %>%
+  mutate(year_cut = cut(Year, breaks=3)) %>% #cutting into 3 periods
+  group_by(year_cut, Year, Month) %>%
+  mutate(mean_closing = mean(Closing_Price)) %>% #getting averages
+  mutate(mean_volume = mean(Volume_of_Shares_Traded)) %>%
+  ggplot(aes(x=mean_volume, y=mean_closing)) +
+  facet_grid(. ~ year_cut) + #displaying each time period
+  geom_point() +
+  geom_smooth(method=lm, color="blue") +
+  labs(title="Facebook Stock Mean Closing Price vs Mean Volume (May 2015 - May 2018)")
+
+```
+
+By using a cut across 3 years, I can see how the average Closing Price relates to the average volume traded. In 2015 to 2016, it seems like as volume traded went up, the average closing price went down. It also follows a similar trend in the other 2 time periods of 2016 to 2017 and 2017 to 2018. 
+
+Using this data, one can be wary of the market. He or she would know that as soon as the volume starts increasing, the closing price typically goes down so when this happens, it is time to sell the stock.
+
+Let's see how this varies for opening price!
+
+```{r}
+
+fb_df_cleaned %>%
+  mutate(year_cut = cut(Year, breaks=3)) %>% #cutting into 3 periods
+  group_by(year_cut, Year, Month) %>%
+  mutate(mean_opening = mean(Opening_Price)) %>% #getting averages
+  mutate(mean_volume = mean(Volume_of_Shares_Traded)) %>%
+  ggplot(aes(x=mean_volume, y=mean_opening)) +
+  facet_grid(. ~ year_cut) + #displaying each time period
+  geom_point() +
+  geom_smooth(method=lm, color="blue") +
+  labs(title="Facebook Stock Mean Opening Price vs Mean Volume (May 2015 - May 2018)")
+
+```
+
+As you can see, it looks exactly the same so daily prices have not different much at all!
+
+Another way we can anticipate a good time to sell the stock is by looking at the difference between the opening and closing prices of each day ie. closing price - opening price. If the stock has a consistently negative value of closing price - opening price, that is typically an indicator for the investor to sell and back out. However, some investors choose to "bag - hold", meaning that while they are at a loss, they keep holding the stock hoping that it will go back up. This is not something many brokers recommend - they typically say cut your losses. So in a way to minimize losses, we  can calculate and analyze the plot of the closing/opening price difference!
+
+So, let's make a new data frame for this:
+
+```{r}
+
+fb_df_diff <- fb_df_cleaned %>%
+  mutate(Close_Open_Diff = (Closing_Price - Opening_Price)) %>% #making a new column with the Closing_Price - Opening_Price
+  as_data_frame()
+fb_df_diff
+```
+
+Now, let's plot this data frame:
+
+```{r, fig.width=14, fig.height=7}
+fb_df_diff %>%
+  ggplot(aes(x=Date, y=Close_Open_Diff, label = Date)) + #labeling each data point with Date
+  labs(title="Facebook Stock Closing-Opening Price Value (May 2016 - May 2018)") +
+  geom_line() +
+  geom_text(color = "blue")
+```
+
+While this plot does its job, this is extremely hard to see, so instead we can just look at each month with averages instead! We should group by Year and Month, then do a summarize to get the values for the mean opening and closing prices. Next we should combine the Year and Month and make it into a date object so we can plot data points based on Date.
+
+```{r, fig.width=14, fig.height=7}
+fb_df_diff2 <- fb_df_cleaned %>%
+  group_by(Year, Month) %>%
+  summarize(mean_open = mean(Opening_Price), mean_close = mean(Closing_Price)) %>% #Averages 
+  mutate(mean_Close_Open_Diff = (mean_close - mean_open)) %>% #Calculation with averages
+  mutate(Date = paste(Month, "- 01 -", Year )) %>% #making a new column for year months
+  mutate(Date=as.Date(Date, format = "%m - %d - %Y")) #converting it to a date object
+
+fb_df_diff2 %>%
+  ggplot(aes(x=Date, y=mean_Close_Open_Diff, label = Date)) +
+  labs(title="Facebook Stock Mean Closing-Opening Price Value (May 2016 - May 2018)") +
+  geom_line() +
+  geom_text(color = "blue")
+
+```
+
+Now, it is possible to see the months when the value of mean Closing Price - mean Opening Price is less than 0. All the months that have a negative value indicating no growth and loss! Using this data, the investor can analyze the months when the stock typically falls and is at a good selling point!
+
+Notice the 2 values in the bottom right. These were both very big incidents in the technology and stock world. The 2018-02-01 point is when the market had a big correction earlier this year. The 2018-04-01 point is a result of what we talked about in CMSC320 - the Cambridge Analytica fiasco!
+
+
+Now that we have used exploratory data analysis, we can also delve into hypothesis testing!
+
+##Hypothesis Testing
+
+The experiment we want to try is whether the stock will go up or not. We believe that the stock will go up - let's test this!
+
+First, we measure the number of days the stock goes up/even and down.
+
+```{r}
+going_up <- sum(fb_df_diff$Close_Open_Diff >= 0) #seeing how days are positive
+going_up
+
+going_down <- sum(fb_df_diff$Close_Open_Diff < 0) #seeing how many days are negative
+going_down
+```
+
+Without any knowledge, let's assume the probability of the stock going up is $p_A$ = 0.5. We want to estimate $p_B$, the probabilty of the stock going up.
+
+The total number of days is 756. The number of days that the stock goes up is 391. We will treat this as n = 756 draws from Bernoulli(.5) random variable and use the sample mean $\bar{X}$ as 391/756 as the estimate $\hat{p_B}$. The sample mean is this because $\frac{1}{n} \sum\limits_{i=1}^n X_i =  \frac{1}{756} * 391$. If you do not completely understand this, you can read more about Bernoulli here: https://en.wikipedia.org/wiki/Bernoulli_distribution !
+
+We will test the null hypothesis $p_B <= p_A$ and reject it if $p(\bar{X} > \hat{p_B}) <= \alpha$ where alpha (0.05 in this case) is our rejection level.
+
+To do this, we need to calculate $E\bar{X}$ and $Var(\bar{X})$. By deriving these with the sample mean, we get $E\bar{X} = p_A$ and $Var(\bar{X}) = \frac{p_A(1-p_A)}{n}$.
+
+Now we can use R to calculate these.
+
+```{r}
+#creating functions to calculate these values
+E <- function(n, pA) { 
+  pA
+}
+valueE <- E(756, 0.5) #calling function
+
+Var <- function(n, pA) {
+  pA * (1- pA) / n
+}
+valueVar <- Var(756, 0.5) #calling function
+
+valueE
+valueVar
+```
+
+We can see that $E\bar{X} = 0.5$ and $Var(\bar{X}) = 0.0003306878$
+
+Now we can compute $p(\bar{X} > \hat{p_B})$ using the function pnorm. Learn more about it here http://seankross.com/notes/dpqr/ .
+
+Remember, $\hat{p_B}$  = 391/756 
+
+```{r}
+pB = 391/756 
+prob <- pnorm(pB, mean = valueE, sd = sqrt(valueVar), lower.tail = FALSE)
+prob
+```
+
+Since $p(\bar{X} > \hat{p_B})$ is 0.1721736, I should not reject the null hypothesis of $p_B <= p_A$ since this value is not less than or equal to $\alpha$, which is 0.05. This means that the stock value will go up in the future!
+
+Let's see if this changes when n is a smaller number and also when its larger!
+
+```{r}
+
+valueE2 <- E(600, 0.5)
+
+valueVar2 <- Var(600, 0.5)
+
+valueE2
+valueVar2
+
+pB2 = 391/600 
+prob2 <- pnorm(pB2, mean = valueE2, sd = sqrt(valueVar2), lower.tail = FALSE)
+prob2
+```
+
+```{r}
+
+valueE3 <- E(900, 0.5)
+
+valueVar3 <- Var(900, 0.5)
+
+valueE3
+valueVar3
+
+pB3 = 391/900 
+prob3 <- pnorm(pB3, mean = valueE3, sd = sqrt(valueVar3), lower.tail = FALSE)
+prob3
+```
+
+Looking at these results, we can reject when n = 500 but can't reject when n = 900.
+
+Now that we have done hypothesis testing, let's delve into some machine learning.
+
+##Machine Learning
+
+One of the most common examples of machine learning is linear regression. It models the relationship between two models by fitting a linear equation to observed data. An example of this was presented earlier on with a regression line that showed the relationship between Date and Closing Price. Go to this link if you want more information! https://en.wikipedia.org/wiki/Linear_regression
+
+Let's first look at the distribution of the closing price across years to get a general feel for the data
+
+```{r }
+fb_df_diff %>%
+  ggplot(aes(x=Year, y=Closing_Price)) +
+  geom_violin() + #type of plot is violin
+  labs(title="Closing Price vs. Year")
+```
+
+Now, let's build a linear model between Closing Price and Year to help us predict the price of the stock in the future.
+
+```{r }
+fb_fit <- lm(Closing_Price~Year, data = fb_df_diff) #linear model for Closing_Price and Year
+fb_fit %>% 
+  tidy()
+
+```
+
+From this, we can see that the stock grows by about $29.75524 per year!
+
+We can also look at the residuals for more information. Residuals are basically the difference between the observed value of the dependent variable and the predicted value. We can look at these using the augment() function. 
+
+```{r }
+fb_fit %>%
+  augment() %>% #augmenting to see more information about the model
+  as_data_frame()
+```
+
+Let's also plot them for better visualization.
+
+```{r }
+fb_fit %>%
+  augment() %>%
+  ggplot(aes(x=factor(Year), y=.resid)) + #residuals are the y axis
+  geom_violin() +
+  labs(title="Residuals vs. Year", x = "year", y = "residuals")
+
+```
+
+These violins help us see what the distribution of residuals across the years!
+
+We can also use a linear model to predict the price in the next month!
+
+```{r }
+df_model <- fb_df_diff %>%
+  mutate(yearMon = paste(Month, "- 01 -", Year )) %>% #making a new column for year months
+  mutate(yearMon=as.Date(yearMon, format = "%m - %d - %Y")) #converting it to a date object
+
+fb_fit <- lm(Closing_Price~yearMon, data = df_model) #linear model
+fb_fit %>% 
+  tidy()
+
+```
+
+As we can see, the stock is estimated to go up by $9.499385e-02. While this may seem small, it makes sense because stocks fluctuate up and down a lot and looking at Facebook's stock data just these past few months, it dips down, then with time it climbs back up to the price it was before - overall there isnt much change between months due to various factors in the market.
+
+We can add interactions between columns to see how their interaction affects the Closing_Price. Visit this link if you have trouble understanding interactions: https://cran.r-project.org/web/packages/jtools/vignettes/interactions.html
+
+```{r }
+fb_fit_int <- lm(Closing_Price~Year*Volume_of_Shares_Traded, data = fb_df_diff) #adding interactions using "*"
+fb_fit_int %>% 
+  tidy()
+
+fb_fit_int %>%
+  augment() %>%
+  ggplot(aes(x=factor(Year), y=.resid)) +
+  geom_violin() +
+  labs(title="Residuals vs. Year", x = "year", y = "residuals")
+
+```
+
+
+
+We can use also multiple logistic regression to see if different predictors can cause the stock to go up or down
+
+```{r }
+log_fb_df <- fb_df_diff %>%
+  mutate(rising = Close_Open_Diff > 0) #making a logical column to see it it rises
+
+#logistic regression with multiple predictors 
+log_r <- glm(rising ~ Year + Volume_of_Shares_Traded + Opening_Price, data=log_fb_df, family="binomial") 
+log_r %>% 
+  tidy() %>%
+  knitr::kable(digits=4)
+```
+
+Looking at this data, we can tell how each predictor affects whether the price goes up or down. The odds of volume and opening_price do not affect whether the stock goes up or down as much as the year does! 
+
+
+Next, we can look at Trees to even further analyze this data set. If you have never seen trees before, take a glance at https://cran.r-project.org/web/packages/tree/tree.pdf to understand a bit before we delve into examples.
+
+Using a regression tree based on Closing_Price and Month, we can determine stock prices.
+
+```{r }
+
+tree <- tree(Closing_Price~Month, data=fb_df_diff) #creating a tree
+plot(tree)
+text(tree, pretty=0, cex=1.3)
+```
+
+This indicates that Months less than 4.5 (January - mid April) tend to have a price around 139.5. Months greater than 4.5 and less 7.5 (mid April - mid July) tend to have prices around 122.3 and months greater than 4.5 and greater than 7.5 (mid July - December) have a price around 132.2.
+
+This lets the investor know that the best time to buy the stock is right before January and hold the stock until mid April. The time to avoid the stock is (mid April - mid July)! Using this regression tree, the investor can also tell that the best time to sell is mid April.
+
+We can also see how the volume changes per month
+
+```{r }
+tree <- tree(Month~Volume_of_Shares_Traded, data=fb_df_diff)
+plot(tree)
+text(tree, pretty=0, cex=1.3)
+```
+
+Using a decision tree with predictors Month and Year gives us a more descriptive tree of estimated prices!
+
+```{r }
+
+tree <- tree(Closing_Price~Month+Year, data=fb_df_diff)
+plot(tree)
+text(tree, pretty=0)
+```
+
+We can do the same thing but add a another column for percent change:
+
+```{r }
+fb_tree <- fb_df_diff %>%
+  mutate(percent_change = Closing_Price/Opening_Price) %>% #creating a column for percent change:: Closing/Opening price
+  select(Closing_Price, Year,Month, percent_change)
+
+tree <- tree(Closing_Price~Month+percent_change, data=fb_tree)
+plot(tree)
+text(tree, pretty=0)
+```
+
+The best stock prices occur after mid July and when the percent change is greater than 1.00214. This is an indication of when to sell to maximize profit.
+
+Looking at this tree, we can tell that as the months and years pass, the stock price continues going up. This lets the investor know that this stock is a good buy and if the investor wants to keep making money, they should hold onto Facebook stock.
+
+If you had trouble understanding trees and have the time, you can visit http://www.stat.wisc.edu/~loh/treeprogs/guide/wires11.pdf to learn more.
+
+
+##Conclusion
+
+This topic is important because so many people today are involved in stock trading and many people are paying top dollar to get investment advice. With stock data analysis, it is possible to optimize as much profit as possible. This is imporant in general because it can help people make money and contribute towards a sustainable market. This topic is important in regards to data science because stock data analysis can bring about a whole new understanding to the stock market - and data scientists can pave the way towards this. It can predict the future of the US market and many people are involved in using big data to analyze stocks. Stock data provides a lot of potential for data analysis there are so many ways to analyze it to come up with different kinds of predictions. 
+
+Through all the methods done in this walk through, we were able to determine how to interpret stock data, which exact months the stock would go up or down, when it was a good time to sell the stock, what indicators would make a stock go down, what the price would be in the future, which predictors affect whether it goes up or down, which plays are best to make for each month, and how the stock changes throughout the years.
+
+There have been many techniques learned such as data curation, parsing, management, exploratory data analysis, hypothesis testing, and machine learning techniques. Through these techniques, the reader has now gained the skills to anaylze and understand stock data more than they have before - they can now use data science to predict what the stock price will be in the future and know when is the best time to maximize profit! Along with this, they have learned the process in selecting a data set, analyzing it, creating predictions, and then finally draw a message from it. After reading this walk through, the user has gained skills and knowledge that will allow them to analyze many other data sets and draw conclusions from them!
+
+
+
+
