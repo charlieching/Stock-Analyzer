@@ -4,6 +4,7 @@
 
 
 ```{r load_data, message=FALSE, warning= FALSE}
+#loading in libraries
 library(tidyverse)
 library(dplyr)
 
@@ -17,7 +18,7 @@ library(tree)
 library(randomForest)
 ```
 
-##Can we predict the future of a stock and how to maximize profit?
+##Can we predict the future of a stock and how to maximize profit from it?
 
 Using R, we will analyze Facebook Stock data and seek to answer this question!
 
@@ -36,7 +37,7 @@ fb_df %>%
   as_data_frame() #using as_data_frame() so it doesn't print out the entire frame
 ```
 
-Above, you can see the dataset. Just looking at it, you can see it has 6 columns and 756 rows. If you may be wondering why some dates are missing, it is because the stock market is not open on the weekends!
+Above, you can see the dataset. Just looking at it, you can see it has 6 columns and 756 rows. If you may be wondering why some dates are missing (such as 4/28/2018), it is because the stock market is not open on the weekends!
 
 When looking at the data set, we can see that some column names aren't that descriptive - someone who doesn't know about stocks may have a hard time understanding what these numbers mean.
 
@@ -54,7 +55,7 @@ fb_df_updated
 
 Let's split up this date into months, days, and years through the separate method. We should also convert these numbers into integers for later analysis using the type_convert method - this parses the character attributes into integers. 
 
-Now, let's also convert the date columns to date objects to allow for easier analysis. This is done by parsing the <chr> values into a different type of <date> through using as.Date() and specifying the format of %d/%m%Y to match the format of the <chr> originally in the Date column.
+Let's also convert the date columns to date objects to allow for easier analysis. This is done by parsing the <chr> values into a different type of <date> through using as.Date() and specifying the format of %d/%m%Y to match the format of the <chr> originally in the Date column.
 
 
 ```{r }
@@ -69,7 +70,7 @@ fb_df_dates <- fb_df_updated %>%
 fb_df_dates
 ```
 
-Since we now have a nice data frame, let's begin the analysis with a plot of how the stock price changes across years using ggplot2. You can learn more about ggplot2 [here](http://ggplot2.org/) !
+Since we now have a nice data frame, let's begin the analysis with a plot of how the stock price changes across years using ggplot2. You can learn more about ggplot2 here: http://ggplot2.org/ !
 
 Closing Price is the price that is displayed since it is the indication of how well or how poorly the stock performed during the day. Because of this, we can get rid of columns that are not as important in the data frame such as high and low.
 
@@ -82,7 +83,7 @@ fb_df_cleaned
 ```
 
 
-
+Now let's plot the graph described before:
 
 ```{r }
 fb_df_cleaned %>%
@@ -97,7 +98,7 @@ Since there is now a basic understanding of stocks and how ggplot2 works, let's 
 
 ##Exploratory Data Analysis
 
-Similar to the plot before, using a certain type of plot requires you to do ggplot(...) + geom_X where X is a type of plot. In this case, we are going to use point in order to see how the regression line looks like!
+Similar to the plot before, using a certain type of plot requires you to do ggplot(...) + geom_X() where X is a type of plot. This applies to many types of plots made using ggplot. Let's trying doing a scatter plot! In this case, we are going to use geom_point() and add in a regression line!
 
 ```{r}
 
@@ -108,7 +109,7 @@ fb_df_cleaned %>%
   geom_smooth(method=lm) #showing regression line
 ```
 
-This helps to indicate the relationship between date and closing price.
+This regression line helps to indicate the relationship between date and closing price.
 
 Let's see how closing price correlates to opening price
 ```{r}
@@ -129,7 +130,7 @@ fb_df_cleaned %>%
   labs(title="Facebook Stock Boxplot (May 2015 - May 2018)")
 ```
 
-However, this only shows the boxplot for all years grouped into one. Suppose we want to see the boxplot for each year? We can do this by using a group in the aes for year. This is where the separation of the date we did earlier comes into play!
+However, this only shows the boxplot for all years grouped into one. Suppose we want to see the boxplot for each year? We can do this by using a group in the aes (aesthetic) for year. This is where the separation of the date we did earlier comes into play!
 
 ```{r}
 fb_df_cleaned %>%
@@ -183,9 +184,9 @@ fb_df_cleaned %>%
 
 ```
 
-As you can see, it looks exactly the same so daily prices have not different much at all!
+As you can see, it looks almost exactly the same so prices throughout the day have not differed much at all!
 
-Another way we can anticipate a good time to sell the stock is by looking at the difference between the opening and closing prices of each day ie. closing price - opening price. If the stock has a consistently negative value of closing price - opening price, that is typically an indicator for the investor to sell and back out. However, some investors choose to "bag - hold", meaning that while they are at a loss, they keep holding the stock hoping that it will go back up. This is not something many brokers recommend - they typically say cut your losses. So in a way to minimize losses, we  can calculate and analyze the plot of the closing/opening price difference!
+Another way we can anticipate a good time to sell the stock is by looking at the difference between the opening and closing prices of each day ie. closing price - opening price. If the stock has a consistently negative value of closing price - opening price, that is typically an indicator for the investor to sell and back out. However, some investors choose to "bag - hold", meaning that while they are at a loss, they keep holding the stock hoping that it will go back up. This is not something many brokers recommend - they typically say cut your losses. So in a way to minimize losses, we can calculate and analyze the plot of the closing/opening price difference!
 
 So, let's make a new data frame for this:
 
@@ -207,7 +208,7 @@ fb_df_diff %>%
   geom_text(color = "blue")
 ```
 
-While this plot does its job, this is extremely hard to see, so instead we can just look at each month with averages instead! We should group by Year and Month, then do a summarize to get the values for the mean opening and closing prices. Next we should combine the Year and Month and make it into a date object so we can plot data points based on Date.
+While this plot does its job, it is extremely hard to see each individual date, so instead we can just look at each month with averages instead! We should group by Year and Month, then do a summarize to get the values for the mean opening and closing prices. Next we should combine the Year and Month and make it into a date object so we can plot data points based on Date.
 
 ```{r, fig.width=14, fig.height=7}
 fb_df_diff2 <- fb_df_cleaned %>%
@@ -225,7 +226,7 @@ fb_df_diff2 %>%
 
 ```
 
-Now, it is possible to see the months when the value of mean Closing Price - mean Opening Price is less than 0. All the months that have a negative value indicating no growth and loss! Using this data, the investor can analyze the months when the stock typically falls and is at a good selling point!
+Now, it is possible to see the months when the value of mean Closing Price - mean Opening Price is less than 0. All the months that have a negative value indicate no growth and at the same time, loss! Using this data, the investor can analyze the months when the stock typically falls and is at a good selling point!
 
 Notice the 2 values in the bottom right. These were both very big incidents in the technology and stock world. The 2018-02-01 point is when the market had a big correction earlier this year. The 2018-04-01 point is a result of what we talked about in CMSC320 - the Cambridge Analytica fiasco!
 
@@ -246,7 +247,7 @@ going_down <- sum(fb_df_diff$Close_Open_Diff < 0) #seeing how many days are nega
 going_down
 ```
 
-Without any knowledge, let's assume the probability of the stock going up is $p_A$ = 0.5. We want to estimate $p_B$, the probabilty of the stock going up.
+Without any knowledge, let's assume the probability of the stock going up is $p_A$ = 0.5. We want to estimate $p_B$, the probability of the stock going up.
 
 The total number of days is 756. The number of days that the stock goes up is 391. We will treat this as n = 756 draws from Bernoulli(.5) random variable and use the sample mean $\bar{X}$ as 391/756 as the estimate $\hat{p_B}$. The sample mean is this because $\frac{1}{n} \sum\limits_{i=1}^n X_i =  \frac{1}{756} * 391$. If you do not completely understand this, you can read more about Bernoulli here: https://en.wikipedia.org/wiki/Bernoulli_distribution !
 
@@ -316,7 +317,7 @@ prob3 <- pnorm(pB3, mean = valueE3, sd = sqrt(valueVar3), lower.tail = FALSE)
 prob3
 ```
 
-Looking at these results, we can reject when n = 500 but can't reject when n = 900.
+Looking at these results, we can reject when n = 600 but can't reject when n = 900.
 
 Now that we have done hypothesis testing, let's delve into some machine learning.
 
@@ -324,7 +325,7 @@ Now that we have done hypothesis testing, let's delve into some machine learning
 
 One of the most common examples of machine learning is linear regression. It models the relationship between two models by fitting a linear equation to observed data. An example of this was presented earlier on with a regression line that showed the relationship between Date and Closing Price. Go to this link if you want more information! https://en.wikipedia.org/wiki/Linear_regression
 
-Let's first look at the distribution of the closing price across years to get a general feel for the data
+Let's first look at the distribution of the closing price across years to get a general feel for the data:
 
 ```{r }
 fb_df_diff %>%
@@ -332,6 +333,8 @@ fb_df_diff %>%
   geom_violin() + #type of plot is violin
   labs(title="Closing Price vs. Year")
 ```
+
+We see that most prices are around the $125 range.
 
 Now, let's build a linear model between Closing Price and Year to help us predict the price of the stock in the future.
 
@@ -380,7 +383,7 @@ fb_fit %>%
 
 As we can see, the stock is estimated to go up by $9.499385e-02. While this may seem small, it makes sense because stocks fluctuate up and down a lot and looking at Facebook's stock data just these past few months, it dips down, then with time it climbs back up to the price it was before - overall there isnt much change between months due to various factors in the market.
 
-We can add interactions between columns to see how their interaction affects the Closing_Price. Visit this link if you have trouble understanding interactions: https://cran.r-project.org/web/packages/jtools/vignettes/interactions.html
+We can add interactions between columns to see how their interaction affects the Closing_Price. Let's make one with Year and Volume_of_Shares_Traded and also plot the residuals using the same steps as before. Visit this link if you have trouble understanding interactions: https://cran.r-project.org/web/packages/jtools/vignettes/interactions.html
 
 ```{r }
 fb_fit_int <- lm(Closing_Price~Year*Volume_of_Shares_Traded, data = fb_df_diff) #adding interactions using "*"
@@ -428,7 +431,7 @@ This indicates that Months less than 4.5 (January - mid April) tend to have a pr
 
 This lets the investor know that the best time to buy the stock is right before January and hold the stock until mid April. The time to avoid the stock is (mid April - mid July)! Using this regression tree, the investor can also tell that the best time to sell is mid April.
 
-We can also see how the volume changes per month
+We can also see how the volume changes per month:
 
 ```{r }
 tree <- tree(Month~Volume_of_Shares_Traded, data=fb_df_diff)
@@ -445,6 +448,8 @@ plot(tree)
 text(tree, pretty=0)
 ```
 
+Looking at this, we can see how the price has increased throughout the years!
+
 We can do the same thing but add a another column for percent change:
 
 ```{r }
@@ -457,20 +462,20 @@ plot(tree)
 text(tree, pretty=0)
 ```
 
-The best stock prices occur after mid July and when the percent change is greater than 1.00214. This is an indication of when to sell to maximize profit.
+The best stock prices occur after mid July and when the percent change is less than 1.00214. This is an indication of when to sell to maximize profit.
 
 Looking at this tree, we can tell that as the months and years pass, the stock price continues going up. This lets the investor know that this stock is a good buy and if the investor wants to keep making money, they should hold onto Facebook stock.
 
-If you had trouble understanding trees and have the time, you can visit http://www.stat.wisc.edu/~loh/treeprogs/guide/wires11.pdf to learn more.
+If you had trouble understanding trees, you can visit http://www.stat.wisc.edu/~loh/treeprogs/guide/wires11.pdf to learn more.
 
 
 ##Conclusion
 
-This topic is important because so many people today are involved in stock trading and many people are paying top dollar to get investment advice. With stock data analysis, it is possible to optimize as much profit as possible. This is imporant in general because it can help people make money and contribute towards a sustainable market. This topic is important in regards to data science because stock data analysis can bring about a whole new understanding to the stock market - and data scientists can pave the way towards this. It can predict the future of the US market and many people are involved in using big data to analyze stocks. Stock data provides a lot of potential for data analysis there are so many ways to analyze it to come up with different kinds of predictions. 
+This topic is important because so many people today are involved in stock trading and many people are paying top dollar to get investment advice. With stock data analysis, it is possible to optimize as much profit as possible. This is important in general because it can help people make money and contribute towards a sustainable market. This topic is important in regards to data science because stock data analysis can bring about a whole new understanding to the stock market - and data scientists can pave the way towards this. It can predict the future of the US market and many people are involved in using big data to analyze stocks. Stock data provides a lot of potential for data analysis there are so many ways to analyze it to come up with different kinds of predictions. 
 
-Through all the methods done in this walk through, we were able to determine how to interpret stock data, which exact months the stock would go up or down, when it was a good time to sell the stock, what indicators would make a stock go down, what the price would be in the future, which predictors affect whether it goes up or down, which plays are best to make for each month, and how the stock changes throughout the years.
+Through all the methods done in this walk through, we were able to determine how to interpret stock data, which exact months the stock would go up or down, when it was a good time to sell the stock, what indicators would make a stock go down, what the price would be in the future, which predictors affect whether it goes up or down, which plays are best to make for each month, and how the stock changes throughout the years. Through all of this, the reader can determine that Facebook is in fact a good stock to buy and now knows which time is best to sell in order to make as much as possible!
 
-There have been many techniques learned such as data curation, parsing, management, exploratory data analysis, hypothesis testing, and machine learning techniques. Through these techniques, the reader has now gained the skills to anaylze and understand stock data more than they have before - they can now use data science to predict what the stock price will be in the future and know when is the best time to maximize profit! Along with this, they have learned the process in selecting a data set, analyzing it, creating predictions, and then finally draw a message from it. After reading this walk through, the user has gained skills and knowledge that will allow them to analyze many other data sets and draw conclusions from them!
+There have been many techniques learned such as data curation, parsing, management, exploratory data analysis, hypothesis testing, and machine learning. Through these techniques, the reader has now gained the skills to analyze and understand stock data more than they have before - they can now use data science to predict what the stock price will be in the future and know how to maximize profit! Along with this, they have learned the process in selecting a data set, analyzing it through the creation of plots, trees, etc., creating predictions, and then finally drawing a conclusion from it. After reading this walk through, the user has gained skills and knowledge that will allow them to analyze many other data sets and draw conclusions from them!
 
 
 
